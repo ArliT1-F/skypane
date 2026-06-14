@@ -1,14 +1,11 @@
 {
 	"required": true,
-	"package": "com.example.client.mixin",
+	"package": "com.skypane.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"ExampleClientMixin"
+		"SkyPaneClientMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
-	},
-	"overwrites": {
-		"requireAnnotations": true
 	}
 }
