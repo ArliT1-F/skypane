@@ -1,0 +1,19 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "upstream"]
+	url = https://github.com/FabricMC/fabric-example-mod
+	fetch = +refs/heads/*:refs/remotes/upstream/*
+[branch "26.1.2"]
+	remote = upstream
+	merge = refs/heads/26.1.2
+	vscode-merge-base = origin/26.1.2
+[branch "SkyPane"]
+	vscode-merge-base = origin/26.1.2
+	remote = origin
+	merge = refs/heads/SkyPane
+[remote "origin"]
+	url = https://github.com/ArliT1-F/fabric-example-mod.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
