@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CHUNK_SIZE } from './world.js';
+import { CHUNK_SIZE, PROP_KEYS } from './world.js';
 
 // LOD rings, measured in chunks (Chebyshev distance from the car's chunk).
 const LODS = [
@@ -184,14 +184,15 @@ export class Terrain {
     mesh.matrixAutoUpdate = false;
     group.add(mesh);
 
-    for (const kind of ['conifer', 'broad', 'rock']) {
+    for (const kind of PROP_KEYS) {
       const p = r[kind];
       if (!p || !p.count) continue;
       const def = this.materials[kind];
+      if (!def) continue;
       const im = new THREE.InstancedMesh(def.geo, def.mat, p.count);
       im.instanceMatrix = new THREE.InstancedBufferAttribute(p.mats, 16);
       im.instanceColor = new THREE.InstancedBufferAttribute(p.cols, 3);
-      im.castShadow = want.d <= 1;
+      im.castShadow = want.d <= 1 && def.castShadow !== false;
       im.receiveShadow = false;
       im.computeBoundingSphere();
       group.add(im);

@@ -13,7 +13,10 @@ and no asset files: the terrain, trees, cars, sky, music and engine sound are al
 - **Seeds**: every road comes from a seed. Share a road with `?seed=123456`.
 - **Time of day**: dawn, morning, noon, afternoon, sunset or night, plus an optional
   20-minute day/night cycle. Includes stars, a moon, headlights and glowing roadside reflectors.
-- **Three vehicles** (coupe, wagon, camper van) in 8 colours.
+- **Four vehicles** (coupe, wagon, camper van, motorcycle) in 8 colours.
+- **Slow Roads progressive steering mechanics**: smooth, non-linear steering input, speed-dependent steering lock limiter, and realistic vehicle lateral momentum and grip physics.
+- **Dreamcore & rich procedural world**: floating luminous octahedrons & dream rings, classical marble pillars, glowing ground crystals, flowering bushes, wildflower patches, dream blossom trees, roadside chevrons and vintage lanterns.
+- **Dreamy aesthetics & particles**: floating dream dust and fireflies drifting through the air, painterly sky palettes, atmospheric fog, and dynamic motorcycle banking physics.
 - **Autodrive** (`E`): the car follows the road on its own. Tap throttle to speed up; steer or brake to take over.
 - **Four cameras** (`C`): chase, low chase, bonnet and cinematic roadside shots.
 - **Generative audio**: ambient pad music, engine, road/wind/gravel noise, birds by day and crickets at night.

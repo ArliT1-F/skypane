@@ -141,7 +141,7 @@ export class AudioEngine {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
 
-  /** state: { rpm 0..1, speed m/s, throttle 0..1, offRoad 0..1, night 0..1, paused } */
+  /** state: { rpm 0..1, speed m/s, throttle 0..1, offRoad 0..1, night 0..1, paused, isBike } */
   update(s) {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const ctx = this.ctx;
@@ -150,9 +150,12 @@ export class AudioEngine {
     const ev = this.volumes.engine, av = this.volumes.ambience;
     const spd = Math.abs(s.speed);
 
-    const f0 = 32 + s.rpm * 110 * (s.engineRange ?? 1);
+    const f0 = (s.isBike ? 44 : 32) + s.rpm * (s.isBike ? 130 : 110) * (s.engineRange ?? 1);
     for (const o of this.osc) o.frequency.setTargetAtTime(f0 * o.mul, t, tc);
-    this.engineFilter.frequency.setTargetAtTime(220 + s.rpm * 900 + s.throttle * 700, t, tc);
+    this.engineFilter.frequency.setTargetAtTime(
+      (s.isBike ? 320 : 220) + s.rpm * (s.isBike ? 1150 : 900) + s.throttle * (s.isBike ? 850 : 700),
+      t, tc
+    );
     this.engineGain.gain.setTargetAtTime(s.paused ? 0 : ev * (0.05 + 0.1 * s.throttle + 0.06 * s.rpm), t, 0.12);
 
     this.road.g.gain.setTargetAtTime(s.paused ? 0 : av * clamp(spd / 40, 0, 1) * 0.35 * (1 - s.offRoad * 0.6), t, 0.1);

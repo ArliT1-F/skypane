@@ -14,6 +14,21 @@ export const FLAT_HALF = ROAD_HALF + SHOULDER + 0.8; // terrain is flattened ins
 export const WATER_LEVEL = -26;
 export const SPAWN_INDEX = 600;
 
+export const PROP_KEYS = [
+  'conifer',
+  'broad',
+  'dreamTree',
+  'bush',
+  'flower',
+  'rock',
+  'crystal',
+  'pillar',
+  'floatingDiamond',
+  'floatingRing',
+  'roadSign',
+  'lantern',
+];
+
 const NEAR = 80; // fine road-distance query radius
 const FAR = 950; // coarse road-distance query radius (mountains fade in with distance)
 const FINE_BUCKET = 32;
@@ -385,33 +400,35 @@ export class World {
     const n2 = this.nMisc(x / 35 + 300, z / 35);
     // palette (sRGB 0..1)
     let r, g, b;
-    // grass: blend lush green ↔ dry meadow
+    // grass: blend lush pastel green ↔ sunlit meadow
     const dry = smoothstep(-0.5, 0.7, n1 + 0.35 * n2 + (h - 20) / 160);
-    r = lerp(0.29, 0.62, dry);
-    g = lerp(0.47, 0.6, dry);
-    b = lerp(0.2, 0.3, dry);
-    // darker, cooler tones where forests grow (reads as woodland from far away)
+    r = lerp(0.32, 0.64, dry);
+    g = lerp(0.52, 0.66, dry);
+    b = lerp(0.24, 0.35, dry);
+    // cooler, dreamy tones where forests grow
     const forest = smoothstep(-0.05, 0.4, fbm(this.nMisc, x / 650 - 70, z / 650 + 20, 3)) * (1 - smoothstep(180, 250, h));
-    r = lerp(r, 0.17, forest * 0.55); g = lerp(g, 0.3, forest * 0.55); b = lerp(b, 0.17, forest * 0.55);
+    r = lerp(r, 0.19, forest * 0.52);
+    g = lerp(g, 0.34, forest * 0.52);
+    b = lerp(b, 0.22, forest * 0.52);
     const shade = 1 + 0.07 * n2;
     r *= shade; g *= shade; b *= shade;
 
     // sand / shore
     const sand = 1 - smoothstep(WATER_LEVEL + 0.8, WATER_LEVEL + 3.5, h);
-    r = lerp(r, 0.78, sand); g = lerp(g, 0.72, sand); b = lerp(b, 0.55, sand);
+    r = lerp(r, 0.82, sand); g = lerp(g, 0.75, sand); b = lerp(b, 0.58, sand);
 
     // gravel verge near the road
     const verge = 1 - smoothstep(FLAT_HALF - 0.5, FLAT_HALF + 3, d);
-    r = lerp(r, 0.52, verge * 0.7); g = lerp(g, 0.5, verge * 0.7); b = lerp(b, 0.42, verge * 0.7);
+    r = lerp(r, 0.54, verge * 0.65); g = lerp(g, 0.52, verge * 0.65); b = lerp(b, 0.44, verge * 0.65);
 
     // rock on steep slopes & high up
     const rock = Math.max(1 - smoothstep(0.62, 0.8, ny), smoothstep(150, 260, h + n2 * 20) * 0.85);
-    const rk = 0.5 + 0.06 * n1;
-    r = lerp(r, rk, rock); g = lerp(g, rk * 0.97, rock); b = lerp(b, rk * 0.95, rock);
+    const rk = 0.52 + 0.06 * n1;
+    r = lerp(r, rk, rock); g = lerp(g, rk * 0.97, rock); b = lerp(b, rk * 0.96, rock);
 
-    // snow caps
+    // snow caps with soft violet/blue tint
     const snow = smoothstep(250, 300, h + n1 * 35) * smoothstep(0.55, 0.75, ny);
-    r = lerp(r, 0.95, snow); g = lerp(g, 0.96, snow); b = lerp(b, 0.99, snow);
+    r = lerp(r, 0.96, snow); g = lerp(g, 0.97, snow); b = lerp(b, 1.0, snow);
 
     // sRGB → linear (vertex colours are interpreted as linear by three.js)
     out[0] = Math.pow(r, 2.2);
@@ -420,9 +437,11 @@ export class World {
   }
 
   buildProps(ox, oz, size, fineList, coarseList) {
-    const cell = 13;
+    const cell = 9.2; // Denser cell grid for a detailed, non-barren world
     const n = Math.floor(size / cell);
-    const trees = { conifer: [], broad: [], rock: [] };
+    const props = {};
+    for (const k of PROP_KEYS) props[k] = [];
+
     const res = { h: 0, d: 0, ry: 0 };
     const seed = this.seed;
     const hashf = (a, b, c) => {
@@ -432,23 +451,67 @@ export class World {
       return (h >>> 0) / 4294967296;
     };
     const baseI = Math.round(ox / cell), baseJ = Math.round(oz / cell);
+
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
         const gi = baseI + i, gj = baseJ + j;
         const r0 = hashf(gi, gj, 1);
-        const x = ox + (i + 0.15 + 0.7 * hashf(gi, gj, 2)) * cell;
-        const z = oz + (j + 0.15 + 0.7 * hashf(gi, gj, 3)) * cell;
-        const forest = fbm(this.nMisc, x / 650 - 70, z / 650 + 20, 3);
-        const density = smoothstep(-0.05, 0.4, forest) * 0.9 + 0.035;
-        const wantTree = r0 < density;
-        const wantRock = !wantTree && r0 > 0.985;
-        if (!wantTree && !wantRock) continue;
+        const r1 = hashf(gi, gj, 2);
+        const r2 = hashf(gi, gj, 3);
+        const r3 = hashf(gi, gj, 4);
+        const r4 = hashf(gi, gj, 5);
+        const r5 = hashf(gi, gj, 6);
+        const r6 = hashf(gi, gj, 7);
+        const r7 = hashf(gi, gj, 8);
+
+        const x = ox + (i + 0.15 + 0.7 * r1) * cell;
+        const z = oz + (j + 0.15 + 0.7 * r2) * cell;
 
         this.evalHeight(x, z, fineList, coarseList, res);
-        if (res.d < FLAT_HALF + 4) continue;
         const h = res.h;
-        if (h < WATER_LEVEL + 1.8) continue;
-        // slope estimate
+        const d = res.d;
+        if (h < WATER_LEVEL + 1.2) continue;
+
+        const lx = x - ox, lz = z - oz;
+        const rot = r3 * Math.PI * 2;
+
+        // 1. Roadside details (within verge boundary)
+        if (d >= FLAT_HALF + 0.4 && d < FLAT_HALF + 4.8) {
+          // Wildflower verge clumps
+          if (r0 < 0.32) {
+            const s = 0.6 + r4 * 0.5;
+            props.flower.push(lx, res.ry - 0.04, lz, rot, s, s, r7);
+            continue;
+          }
+          // Roadside vintage lanterns
+          if (r0 > 0.94) {
+            const s = 0.85 + r4 * 0.2;
+            props.lantern.push(lx, res.ry - 0.08, lz, rot, s, s, r7);
+            continue;
+          }
+          // Roadside chevron sign on curves
+          if (r0 > 0.88 && r0 <= 0.94) {
+            const s = 0.9 + r4 * 0.2;
+            props.roadSign.push(lx, res.ry - 0.05, lz, rot, s, s, r7);
+            continue;
+          }
+          continue;
+        }
+
+        // Keep road and shoulder clear
+        if (d < FLAT_HALF + 3.8) continue;
+
+        // 2. Floating Dreamcore objects (floating octahedrons / toruses)
+        if (r0 > 0.978 && h > WATER_LEVEL + 4.0) {
+          const isRing = r4 < 0.36;
+          const floatAlt = isRing ? 12 + r5 * 22 : 8 + r5 * 18;
+          const s = isRing ? 1.0 + r6 * 0.6 : 0.85 + r6 * 0.65;
+          const target = isRing ? props.floatingRing : props.floatingDiamond;
+          target.push(lx, h + floatAlt, lz, rot, s, s, r7);
+          continue;
+        }
+
+        // slope calculation
         const e = 2.5;
         this.evalHeight(x + e, z, fineList, coarseList, res);
         const hx = res.h;
@@ -456,26 +519,77 @@ export class World {
         const hz = res.h;
         const slope = Math.hypot(hx - h, hz - h) / e;
 
-        const lx = x - ox, lz = z - oz;
-        const rot = hashf(gi, gj, 4) * Math.PI * 2;
-        const r5 = hashf(gi, gj, 5);
-        if (wantRock) {
-          if (slope > 1.2) continue;
-          const s = 0.6 + r5 * 2.2;
-          trees.rock.push(lx, h - 0.3 * s, lz, rot, s, s * (0.6 + hashf(gi, gj, 6) * 0.5), 0.9 + r5 * 0.2);
+        // 3. Ground dreamcore elements: Classical marble column or glowing crystal cluster
+        if (r0 > 0.965 && slope < 0.55 && h < 220) {
+          if (r4 < 0.5) {
+            // Classical column
+            const s = 0.85 + r5 * 0.45;
+            props.pillar.push(lx, h - 0.2, lz, rot, s, s * (0.9 + r6 * 0.3), r7);
+            continue;
+          } else {
+            // Glowing crystal cluster
+            const s = 0.8 + r5 * 0.6;
+            props.crystal.push(lx, h - 0.15, lz, rot, s, s * (0.8 + r6 * 0.4), r7);
+            continue;
+          }
+        }
+
+        // 4. Boulders and rocks
+        if (r0 > 0.935) {
+          if (slope > 1.3) continue;
+          const s = 0.7 + r4 * 2.2;
+          props.rock.push(lx, h - 0.3 * s, lz, rot, s, s * (0.6 + r5 * 0.5), 0.9 + r4 * 0.2);
           continue;
         }
-        if (slope > 0.75 || h > 235 + 25 * this.nMisc(x / 90, z / 90)) continue;
-        const conifer = h > 70 || hashf(gi, gj, 7) < 0.55 + 0.3 * forest;
-        const s = conifer ? 0.75 + r5 * 0.85 : 0.7 + r5 * 0.7;
-        const tint = hashf(gi, gj, 8);
-        (conifer ? trees.conifer : trees.broad).push(lx, h - 0.4, lz, rot, s, s * (0.85 + tint * 0.35), tint);
+
+        // 5. Meadow flowers and bushes
+        if (slope < 0.65 && h < 210) {
+          if (r0 > 0.82 && r0 <= 0.90) {
+            // Flowering bush
+            const s = 0.7 + r4 * 0.6;
+            props.bush.push(lx, h - 0.2, lz, rot, s, s * 0.9, r7);
+            continue;
+          }
+          if (r0 > 0.70 && r0 <= 0.82) {
+            // Wildflower clump
+            const s = 0.6 + r4 * 0.55;
+            props.flower.push(lx, h - 0.1, lz, rot, s, s, r7);
+            continue;
+          }
+        }
+
+        // 6. Trees
+        const forest = fbm(this.nMisc, x / 650 - 70, z / 650 + 20, 3);
+        const density = smoothstep(-0.08, 0.38, forest) * 0.88 + 0.035;
+        if (r0 < density && slope < 0.78 && h < 240 + 25 * this.nMisc(x / 90, z / 90)) {
+          const conifer = h > 75 || r6 < 0.48 + 0.28 * forest;
+          if (conifer) {
+            const s = 0.75 + r4 * 0.85;
+            props.conifer.push(lx, h - 0.4, lz, rot, s, s * (0.85 + r7 * 0.35), r7);
+          } else {
+            // Either lush oak broadleaf or dreamy pastel cherry/golden tree
+            const isDreamTree = r5 < 0.42;
+            const targetProp = isDreamTree ? props.dreamTree : props.broad;
+            const s = isDreamTree ? 0.85 + r4 * 0.65 : 0.7 + r4 * 0.7;
+            targetProp.push(lx, h - 0.4, lz, rot, s, s * (0.85 + r7 * 0.35), r7);
+          }
+        }
       }
     }
+
     return {
-      conifer: packInstances(trees.conifer, [0.16, 0.36, 0.2], [0.3, 0.46, 0.22]),
-      broad: packInstances(trees.broad, [0.36, 0.52, 0.2], [0.62, 0.62, 0.24]),
-      rock: packInstances(trees.rock, [0.52, 0.5, 0.48], [0.66, 0.64, 0.6]),
+      conifer: packInstances(props.conifer, [0.14, 0.35, 0.20], [0.28, 0.48, 0.24]),
+      broad: packInstances(props.broad, [0.35, 0.54, 0.22], [0.58, 0.64, 0.26]),
+      dreamTree: packInstances(props.dreamTree, [0.98, 0.65, 0.78], [0.95, 0.82, 0.52]),
+      bush: packInstances(props.bush, [0.32, 0.52, 0.28], [0.65, 0.45, 0.65]),
+      flower: packInstances(props.flower, [0.98, 0.45, 0.58], [0.45, 0.78, 0.98]),
+      rock: packInstances(props.rock, [0.52, 0.50, 0.48], [0.68, 0.65, 0.62]),
+      crystal: packInstances(props.crystal, [0.65, 0.85, 0.98], [0.92, 0.75, 0.98]),
+      pillar: packInstances(props.pillar, [0.88, 0.88, 0.92], [0.95, 0.93, 0.88]),
+      floatingDiamond: packInstances(props.floatingDiamond, [0.68, 0.92, 0.98], [0.98, 0.65, 0.92]),
+      floatingRing: packInstances(props.floatingRing, [0.98, 0.82, 0.65], [0.72, 0.65, 0.98]),
+      roadSign: packInstances(props.roadSign, [0.95, 0.80, 0.35], [0.95, 0.95, 0.92]),
+      lantern: packInstances(props.lantern, [0.98, 0.88, 0.62], [0.98, 0.75, 0.45]),
     };
   }
 }
