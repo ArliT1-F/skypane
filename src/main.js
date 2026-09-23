@@ -106,6 +106,7 @@ class DreamDust {
     const col = new Float32Array(count * 3);
     this.phases = new Float32Array(count);
     this.speeds = new Float32Array(count);
+    this.mode = -1;
 
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 80;
@@ -153,22 +154,54 @@ class DreamDust {
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
     this.pos = pos;
+    this.col = col;
     this.box = 80;
+  }
+
+  /** Drift palette follows the biome: golden dream dust, blossom petals or snowflakes. */
+  setBiome(mode) {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    const col = this.col;
+    for (let i = 0; i < this.count; i++) {
+      const t = Math.random();
+      let r, g, b;
+      if (mode === 1) {
+        // blossom petals
+        if (t < 0.5) { r = 1.0; g = 0.75; b = 0.85; }
+        else if (t < 0.8) { r = 1.0; g = 0.92; b = 0.96; }
+        else { r = 1.0; g = 0.62; b = 0.78; }
+      } else if (mode === 2) {
+        // snowflakes
+        if (t < 0.6) { r = 0.97; g = 0.98; b = 1.0; }
+        else if (t < 0.9) { r = 0.85; g = 0.92; b = 1.0; }
+        else { r = 0.75; g = 0.85; b = 0.98; }
+      } else {
+        // dream dust
+        if (t < 0.45) { r = 1.0; g = 0.88; b = 0.65; }
+        else if (t < 0.75) { r = 0.68; g = 0.95; b = 0.92; }
+        else { r = 0.95; g = 0.72; b = 0.96; }
+      }
+      col[i * 3] = r; col[i * 3 + 1] = g; col[i * 3 + 2] = b;
+    }
+    this.mesh.geometry.attributes.color.needsUpdate = true;
   }
 
   update(dt, time, cx, cy, cz, night) {
     const p = this.pos;
     const half = this.box / 2;
     this.mat.opacity = 0.5 + night * 0.45;
-    this.mat.size = 1.4 + night * 0.7;
+    this.mat.size = 1.4 + night * 0.7 + (this.mode === 2 ? 0.5 : 0);
+    // snowflakes sink, petals flutter gently down, dust drifts up
+    const fall = this.mode === 2 ? -0.4 : this.mode === 1 ? -0.1 : 0.006;
 
     for (let i = 0; i < this.count; i++) {
       const idx = i * 3;
       const ph = this.phases[i];
       const sp = this.speeds[i];
 
-      p[idx + 1] += Math.sin(time * sp + ph) * 0.02 + 0.006;
-      p[idx] += Math.cos(time * 0.7 * sp + ph) * 0.012;
+      p[idx + 1] += Math.sin(time * sp + ph) * 0.02 + fall;
+      p[idx] += Math.cos(time * 0.7 * sp + ph) * 0.012 + (this.mode === 2 ? 0.02 : 0);
       p[idx + 2] += Math.sin(time * 0.5 * sp + ph) * 0.012;
 
       let dx = p[idx] - cx;
@@ -181,6 +214,7 @@ class DreamDust {
       let dy = p[idx + 1] - cy;
       if (dy < -3) p[idx + 1] = cy + 16 + Math.random() * 4;
       else if (dy > 22) p[idx + 1] = cy + Math.random() * 2;
+      if (fall < 0 && dy < -2.5) p[idx + 1] = cy + 14 + Math.random() * 6;
     }
     this.mesh.geometry.attributes.position.needsUpdate = true;
   }
@@ -639,6 +673,19 @@ let biomeAcc = 0;
 let biomeToastCd = 0;
 let dustAcc = 0;
 let driveInput = { throttle: 0, brake: 0, steer: 0 };
+let nextMilestone = 10;
+const MILESTONES = [
+  '10 km · keep wandering',
+  '20 km · no destination, just driving',
+  '30 km · the road goes on forever',
+  '40 km · nowhere to be, and that is the point',
+  '50 km · an endless dream of asphalt',
+  '60 km · the horizon never gets closer',
+  '70 km · you and the road, still',
+  '80 km · keep drifting',
+  '90 km · the quiet goes on',
+  '100 km · a true zen driver',
+];
 
 function frame() {
   requestAnimationFrame(frame);
@@ -696,6 +743,7 @@ function frame() {
   road.update(car.roadIndex);
   updateCamera(dt);
   sky.update(camera, state.elapsed);
+  dreamDust.setBiome(curBiome.snow > 0.5 ? 2 : curBiome.blossom > 0.45 ? 1 : 0);
   dreamDust.update(dt, state.elapsed, car.x, car.y, car.z, sky.night);
 
   // kicked-up dust: gravel when off-road, tyre smoke under hard braking, white in snow
@@ -735,6 +783,15 @@ function frame() {
   const fogFar = lerp(ringFar, 1450, sky.night);
   scene.fog.far = fogFar;
   scene.fog.near = fogFar * 0.08;
+
+  // gentle milestone musings on long drives
+  if (state.mode === 'drive') {
+    const km = car.distance / 1000;
+    if (km >= nextMilestone) {
+      showToast(MILESTONES[(Math.round(nextMilestone / 10) - 1) % MILESTONES.length]);
+      nextMilestone += 10;
+    }
+  }
 
   // HUD
   if (state.mode === 'drive' && settings.hud) {

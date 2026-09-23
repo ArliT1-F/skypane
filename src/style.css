@@ -22,6 +22,10 @@ html, body {
   -webkit-user-select: none;
 }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#vignette {
+  position: fixed; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 58%, rgba(8, 8, 16, 0.22) 100%);
+}
 [hidden] { display: none !important; }
 
 /* ---------------------------------------------------------------- loading */
