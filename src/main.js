@@ -7,7 +7,7 @@ import { Sky, TIME_PRESETS } from './sky.js';
 import { Car, VEHICLES, COLORS } from './car.js';
 import { AudioEngine } from './audio.js';
 import { Input } from './input.js';
-import { makePropMaterials } from './props.js';
+import { makePropMaterials, floatingTimeUniform } from './props.js';
 import { clamp, lerp } from './noise.js';
 
 // ------------------------------------------------------------------ settings
@@ -44,7 +44,7 @@ try {
 }
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -62,7 +62,7 @@ function applyQuality() {
   if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
   if (typeof terrain !== 'undefined' && terrain.quality !== q) {
     terrain.quality = q;
-    terrain.lastCenter = null; // re-plan rings next frame
+    terrain.lastCenter = null;
   }
   scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   resize();
@@ -73,9 +73,9 @@ scene.fog = new THREE.Fog(0xbfd7ea, 300, 3200);
 const camera = new THREE.PerspectiveCamera(62, 1, 0.3, 9000);
 
 // lights
-const hemi = new THREE.HemisphereLight(0xcfe3ff, 0x6a6448, 1);
+const hemi = new THREE.HemisphereLight(0xd2e5ff, 0x6e654c, 1.05);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+const sun = new THREE.DirectionalLight(0xffffff, 2.6);
 sun.shadow.camera.left = -70;
 sun.shadow.camera.right = 70;
 sun.shadow.camera.top = 70;
@@ -88,17 +88,107 @@ scene.add(sun, sun.target);
 
 const sky = new Sky(scene);
 
-// water: one big plane that follows the car
+// water: translucent dreamy aquamarine plane that follows the car
 const water = new THREE.Mesh(
   new THREE.PlaneGeometry(CHUNK_SIZE * 26, CHUNK_SIZE * 26).rotateX(-Math.PI / 2),
-  new THREE.MeshStandardMaterial({ color: 0x5b95ad, roughness: 0.25, metalness: 0, transparent: true, opacity: 0.9 }),
+  new THREE.MeshStandardMaterial({ color: 0x489eb2, roughness: 0.18, metalness: 0.1, transparent: true, opacity: 0.9 }),
 );
 water.position.y = WATER_LEVEL;
 water.receiveShadow = true;
 scene.add(water);
 
+// ------------------------------------------------------------------ Dream Particles
+class DreamDust {
+  constructor(scene, count = 650) {
+    this.count = count;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    this.phases = new Float32Array(count);
+    this.speeds = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 80;
+      pos[i * 3 + 1] = Math.random() * 20;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 80;
+
+      const t = Math.random();
+      if (t < 0.45) {
+        col[i * 3] = 1.0; col[i * 3 + 1] = 0.88; col[i * 3 + 2] = 0.65;
+      } else if (t < 0.75) {
+        col[i * 3] = 0.68; col[i * 3 + 1] = 0.95; col[i * 3 + 2] = 0.92;
+      } else {
+        col[i * 3] = 0.95; col[i * 3 + 1] = 0.72; col[i * 3 + 2] = 0.96;
+      }
+      this.phases[i] = Math.random() * Math.PI * 2;
+      this.speeds[i] = 0.6 + Math.random() * 0.8;
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.35, 'rgba(255,245,230,0.85)');
+    g.addColorStop(0.7, 'rgba(255,210,180,0.25)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 32, 32);
+    const tex = new THREE.CanvasTexture(c);
+
+    this.mat = new THREE.PointsMaterial({
+      size: 1.5,
+      vertexColors: true,
+      map: tex,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    this.mesh = new THREE.Points(geo, this.mat);
+    this.mesh.frustumCulled = false;
+    scene.add(this.mesh);
+    this.pos = pos;
+    this.box = 80;
+  }
+
+  update(dt, time, cx, cy, cz, night) {
+    const p = this.pos;
+    const half = this.box / 2;
+    this.mat.opacity = 0.5 + night * 0.45;
+    this.mat.size = 1.4 + night * 0.7;
+
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      const ph = this.phases[i];
+      const sp = this.speeds[i];
+
+      p[idx + 1] += Math.sin(time * sp + ph) * 0.02 + 0.006;
+      p[idx] += Math.cos(time * 0.7 * sp + ph) * 0.012;
+      p[idx + 2] += Math.sin(time * 0.5 * sp + ph) * 0.012;
+
+      let dx = p[idx] - cx;
+      let dz = p[idx + 2] - cz;
+      if (dx < -half) p[idx] += this.box;
+      else if (dx > half) p[idx] -= this.box;
+      if (dz < -half) p[idx + 2] += this.box;
+      else if (dz > half) p[idx + 2] -= this.box;
+
+      let dy = p[idx + 1] - cy;
+      if (dy < -3) p[idx + 1] = cy + 16 + Math.random() * 4;
+      else if (dy > 22) p[idx + 1] = cy + Math.random() * 2;
+    }
+    this.mesh.geometry.attributes.position.needsUpdate = true;
+  }
+}
+const dreamDust = new DreamDust(scene);
+
 // ------------------------------------------------------------------ world
-const groundMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0 });
+const groundMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
 const propMats = makePropMaterials();
 let world = new World(settings.seed);
 const terrain = new Terrain(scene, settings.seed, { ground: groundMat, ...propMats }, qualityLevel());
@@ -115,9 +205,9 @@ applyQuality();
 
 // ------------------------------------------------------------------ state
 const state = {
-  mode: 'menu', // menu | drive | pause
+  mode: 'menu',
   autodrive: false,
-  camMode: 0, // 0 chase, 1 low chase, 2 bonnet, 3 cinematic
+  camMode: 0, // 0 chase, 1 low chase, 2 bonnet / first person, 3 cinematic
   time: TIME_PRESETS[settings.time] ?? TIME_PRESETS.sunset,
   photo: false,
   elapsed: 0,
@@ -158,19 +248,20 @@ function updateCamera(dt) {
   const spd = Math.abs(car.speed);
   const carPos = tmp.set(car.x, car.y, car.z);
   let wantPos, wantLook, stiffness = 5;
+  const isBike = car.spec.isBike;
 
   if (state.mode === 'menu') {
-    // slow orbit around the car
     const a = state.elapsed * 0.08 + 2.2;
-    wantPos = new THREE.Vector3(car.x + Math.sin(a) * 9, car.y + 2.6, car.z + Math.cos(a) * 9);
-    wantLook = new THREE.Vector3(car.x, car.y + 0.9, car.z);
+    wantPos = new THREE.Vector3(car.x + Math.sin(a) * 8.5, car.y + (isBike ? 2.0 : 2.6), car.z + Math.cos(a) * 8.5);
+    wantLook = new THREE.Vector3(car.x, car.y + (isBike ? 0.75 : 0.9), car.z);
     stiffness = 3;
   } else if (state.camMode === 2) {
-    wantPos = new THREE.Vector3(car.x + fx * 0.3, car.y + (car.spec.twoTone ? 2.05 : 1.35), car.z + fz * 0.3);
-    wantLook = new THREE.Vector3(car.x + fx * 30, car.y + 1.0 + Math.sin(car.pitch) * 30, car.z + fz * 30);
+    const yOff = isBike ? 1.25 : car.spec.twoTone ? 2.05 : 1.35;
+    const zOff = isBike ? 0.08 : 0.3;
+    wantPos = new THREE.Vector3(car.x + fx * zOff, car.y + yOff, car.z + fz * zOff);
+    wantLook = new THREE.Vector3(car.x + fx * 30, car.y + (isBike ? 1.15 : 1.0) + Math.sin(car.pitch) * 30, car.z + fz * 30);
     stiffness = 40;
   } else if (state.camMode === 3) {
-    // cinematic: drop a camera beside the road ahead; hold until the car passes well by
     cineTimer -= dt;
     const d = cinePos.distanceTo(carPos);
     if (!camInit || cineTimer <= 0 || d > 90) {
@@ -186,17 +277,16 @@ function updateCamera(dt) {
       camLook.set(car.x, car.y + 1, car.z);
     }
     wantPos = cinePos;
-    wantLook = new THREE.Vector3(car.x, car.y + 1, car.z);
+    wantLook = new THREE.Vector3(car.x, car.y + (isBike ? 0.8 : 1), car.z);
     stiffness = 1000;
   } else {
     const low = state.camMode === 1;
-    const dist = (low ? 5.8 : 7.8) + spd * 0.05 + car.spec.length * 0.2;
-    const height = (low ? 1.5 : 2.7) + (car.spec.twoTone ? 0.6 : 0);
-    // trail the car's direction of travel (smoothed separately for a floaty, calm feel)
+    const dist = (isBike ? (low ? 4.3 : 6.0) : (low ? 5.8 : 7.8)) + spd * 0.05 + car.spec.length * 0.2;
+    const height = (isBike ? (low ? 1.35 : 2.1) : (low ? 1.5 : 2.7)) + (car.spec.twoTone ? 0.6 : 0);
     camYaw = lerpAngle(camYaw, car.heading, 1 - Math.exp(-dt * 2.8));
     const cx = Math.sin(camYaw), cz = Math.cos(camYaw);
     wantPos = new THREE.Vector3(car.x - cx * dist, car.y + height, car.z - cz * dist);
-    wantLook = new THREE.Vector3(car.x + fx * 6, car.y + 1.1, car.z + fz * 6);
+    wantLook = new THREE.Vector3(car.x + fx * 6, car.y + (isBike ? 0.85 : 1.1), car.z + fz * 6);
     stiffness = 7;
   }
 
@@ -210,7 +300,6 @@ function updateCamera(dt) {
   camPos.lerp(wantPos, k);
   camLook.lerp(wantLook, 1 - Math.exp(-dt * stiffness * 1.6));
 
-  // keep the camera above ground and water
   if (state.camMode !== 2) {
     const g = world.heightAt(camPos.x, camPos.z).h;
     const minY = Math.max(g, WATER_LEVEL) + 0.7;
@@ -219,7 +308,12 @@ function updateCamera(dt) {
   camera.position.copy(camPos);
   camera.lookAt(camLook);
 
-  const fovT = state.camMode === 2 ? 68 : 60 + clamp(spd / car.spec.maxSpeed, 0, 1) * 10;
+  // Dynamic camera banking when motorcycle leans into curves
+  if (isBike && state.mode === 'drive') {
+    camera.rotation.z += (car.lean || 0) * (state.camMode === 2 ? 0.45 : 0.26);
+  }
+
+  const fovT = state.camMode === 2 ? (isBike ? 72 : 68) : 60 + clamp(spd / car.spec.maxSpeed, 0, 1) * 10;
   camera.fov = lerp(camera.fov, state.camMode === 3 ? 38 : fovT, 1 - Math.exp(-dt * 2));
   camera.updateProjectionMatrix();
 }
@@ -239,11 +333,11 @@ function applyTime(hours) {
   hemi.groundColor.copy(sky.hemiGround);
   hemi.intensity = sky.hemiIntensity;
   scene.fog.color.copy(sky.fogColor);
-  renderer.toneMappingExposure = lerp(1.1, 1.4, sky.night);
+  renderer.toneMappingExposure = lerp(1.08, 1.38, sky.night);
   const n = sky.night;
   car.setNight(n);
   road.setNight(n);
-  water.material.color.setHex(n > 0.5 ? 0x2a3c50 : 0x5b95ad);
+  water.material.color.setHex(n > 0.5 ? 0x22364c : 0x489eb2);
 }
 
 // ------------------------------------------------------------------ UI
@@ -462,13 +556,11 @@ function frame() {
     if (state.mode === 'drive') {
       drive = raw;
       if (state.autodrive && (raw.brake > 0 || Math.abs(raw.steer) > 0)) {
-        // any manual steering/braking takes over from autodrive
         state.autodrive = false;
         showToast('autodrive off');
       }
       if (state.autodrive && raw.throttle > 0) car.cruise = Math.min(car.spec.maxSpeed * 0.95, (car.cruise || 20) + dt * 4);
     }
-    // physics at a fixed-ish sub-step for stability
     const steps = Math.ceil(dt / (1 / 120));
     const h = dt / steps;
     let fell = false;
@@ -476,22 +568,26 @@ function frame() {
     if (fell) resetToRoad();
 
     if (settings.cycle && state.mode === 'drive') {
-      state.time = (state.time + dt * (24 / 1200)) % 24; // full day every 20 minutes
+      state.time = (state.time + dt * (24 / 1200)) % 24;
     }
   }
+
+  // Animate floating dreamcore objects via shader uniform
+  floatingTimeUniform.value = state.elapsed;
 
   applyTime(state.time);
   terrain.update(car.x, car.z);
   road.update(car.roadIndex);
   updateCamera(dt);
   sky.update(camera, state.elapsed);
+  dreamDust.update(dt, state.elapsed, car.x, car.y, car.z, sky.night);
 
   // light/shadow & water follow the car
   sun.position.set(car.x + sky.lightDir.x * 300, car.y + sky.lightDir.y * 300, car.z + sky.lightDir.z * 300);
   sun.target.position.set(car.x, car.y, car.z);
   water.position.x = Math.round(car.x / 64) * 64;
   water.position.z = Math.round(car.z / 64) * 64;
-  // fog: denser at dawn/night for mood
+
   const fogFar = lerp(qualityLevel() > 0 ? 3600 : 2600, 1600, sky.night);
   scene.fog.far = fogFar;
   scene.fog.near = fogFar * 0.08;
@@ -513,12 +609,11 @@ function frame() {
   audio.update({
     rpm: car.rpm, speed: car.speed, throttle: state.mode === 'drive' ? car.throttleVis : 0,
     offRoad: car.offRoad, night: sky.night, paused: state.mode === 'pause' || state.mode === 'menu',
-    engineRange: car.spec.engine.range / 95,
+    engineRange: car.spec.engine.range / 95, isBike: car.spec.isBike,
   });
 
   ui.touch.hidden = !isMobile || state.mode !== 'drive';
 
-  // loading veil until the nearby terrain exists
   if (!firstReady && terrain.chunks.size >= 9) {
     firstReady = true;
     ui.loading.classList.add('done');
@@ -536,5 +631,4 @@ applyTime(state.time);
 resize();
 frame();
 
-// Expose for debugging in the console
 window.zen = { state, car, world: () => world, terrain, settings, newWorld };

@@ -77,11 +77,16 @@ h2 { margin: 0; font-weight: 500; letter-spacing: 0.3em; }
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--glass);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   cursor: pointer;
-  transition: background 0.25s, transform 0.25s, opacity 0.4s;
+  transition: background 0.25s, transform 0.25s, opacity 0.4s, box-shadow 0.25s;
 }
-.begin:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); transform: translateY(-1px); }
+.begin:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 25px rgba(255, 215, 168, 0.25);
+}
 .begin:disabled { opacity: 0.4; cursor: default; }
 
 .panel {

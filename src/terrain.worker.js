@@ -1,4 +1,4 @@
-import { World } from './world.js';
+import { World, PROP_KEYS } from './world.js';
 
 let world = null;
 
@@ -11,8 +11,10 @@ self.onmessage = (e) => {
   if (msg.type === 'build' && world) {
     const r = world.buildChunk(msg.cx, msg.cz, msg.segs, msg.props);
     const transfer = [r.pos.buffer, r.nor.buffer, r.col.buffer];
-    for (const k of ['conifer', 'broad', 'rock']) {
-      if (r[k]) transfer.push(r[k].mats.buffer, r[k].cols.buffer);
+    for (const k of PROP_KEYS) {
+      if (r[k] && r[k].mats && r[k].cols) {
+        transfer.push(r[k].mats.buffer, r[k].cols.buffer);
+      }
     }
     self.postMessage({ type: 'chunk', id: msg.id, gen: msg.gen, data: r }, transfer);
   }
