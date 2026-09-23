@@ -163,7 +163,9 @@ export class AudioEngine {
     this.wind.g.gain.setTargetAtTime(s.paused ? 0 : av * Math.pow(clamp(spd / 45, 0, 1), 2) * 0.3, t, 0.2);
     this.wind.f.frequency.setTargetAtTime(400 + spd * 18 + Math.sin(t * 0.3) * 120, t, 0.3);
     this.gravel.g.gain.setTargetAtTime(s.paused ? 0 : av * s.offRoad * clamp(spd / 12, 0, 1) * 0.5, t, 0.05);
-    this.nature.g.gain.setTargetAtTime(av * (0.02 + 0.03 * (1 - clamp(spd / 20, 0, 1))), t, 0.5);
+    // deserts & snowfields are quieter places — damp the nature bed accordingly
+    const biodamp = 1 - 0.75 * clamp(s.biodamp || 0, 0, 1);
+    this.nature.g.gain.setTargetAtTime(av * biodamp * (0.02 + 0.03 * (1 - clamp(spd / 20, 0, 1))), t, 0.5);
 
     // ---------------------------------------------------------------- music
     if (this.volumes.music > 0.001) {
@@ -171,7 +173,7 @@ export class AudioEngine {
       if (t >= this.nextNoteAt) this._playNote(t);
     }
     if (t >= this.nextBirdAt) {
-      if (s.night < 0.5 && !s.paused) this._bird(t);
+      if (s.night < 0.5 && !s.paused && Math.random() < biodamp) this._bird(t);
       else if (s.night >= 0.5 && !s.paused && Math.random() < 0.5) this._cricket(t);
       this.nextBirdAt = t + 3 + Math.random() * 9;
     }
