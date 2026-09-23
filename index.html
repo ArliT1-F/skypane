@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <title>zen drive — endless relaxing driving in your browser</title>
+    <meta name="description" content="A calm, procedurally generated, endless driving game. No score, no traffic, no timer. Just the road." />
+    <meta name="theme-color" content="#1b2233" />
+    <meta property="og:title" content="zen drive" />
+    <meta property="og:description" content="Endless, procedurally generated, relaxing driving in your browser." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <!-- loading veil -->
+    <div id="loading"><div class="dot"></div></div>
+
+    <!-- main menu -->
+    <section id="menu" class="overlay">
+      <div class="menu-inner">
+        <header class="title">
+          <h1>z e n &nbsp; d r i v e</h1>
+          <p class="tagline">endless driving zen in your browser</p>
+        </header>
+
+        <button id="begin" class="begin" type="button" disabled>begin</button>
+
+        <div class="panel">
+          <div class="row"><span class="label">vehicle</span><div class="chips" data-row="vehicle"></div></div>
+          <div class="row"><span class="label">colour</span><div class="chips" data-row="color"></div></div>
+          <div class="row"><span class="label">time</span><div class="chips" data-row="time"></div></div>
+          <div class="row">
+            <span class="label">day cycle</span>
+            <label class="toggle"><input type="checkbox" data-setting="cycle" /><span></span></label>
+          </div>
+          <div class="row">
+            <span class="label">road seed</span>
+            <div class="seed">
+              <input id="seed-input" type="number" min="0" max="999999" inputmode="numeric" aria-label="road seed" />
+              <button type="button" class="chip" data-action="new-road">random</button>
+              <button type="button" class="chip" id="share">share</button>
+            </div>
+          </div>
+          <details>
+            <summary>settings</summary>
+            <div class="row"><span class="label">quality</span><div class="chips" data-row="quality"></div></div>
+            <div class="row"><span class="label">units</span><div class="chips" data-row="units"></div></div>
+            <div class="row"><span class="label">master</span><input type="range" min="0" max="1" step="0.01" data-vol="master" /></div>
+            <div class="row"><span class="label">music</span><input type="range" min="0" max="1" step="0.01" data-vol="music" /></div>
+            <div class="row"><span class="label">engine</span><input type="range" min="0" max="1" step="0.01" data-vol="engine" /></div>
+            <div class="row"><span class="label">ambience</span><input type="range" min="0" max="1" step="0.01" data-vol="ambience" /></div>
+          </details>
+        </div>
+
+        <p class="keys">
+          <kbd>W A S D</kbd> / arrows drive · <kbd>E</kbd> autodrive · <kbd>C</kbd> camera · <kbd>T</kbd> time
+          · <kbd>H</kbd> hide ui · <kbd>R</kbd> reset · <kbd>N</kbd> new road · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> pause
+          <br />gamepad supported · no score, no traffic, no timer — just drive
+        </p>
+      </div>
+    </section>
+
+    <!-- pause menu -->
+    <section id="pause" class="overlay" hidden>
+      <div class="menu-inner small">
+        <h2>paused</h2>
+        <button id="resume" class="begin" type="button">resume</button>
+        <div class="panel">
+          <div class="row"><span class="label">vehicle</span><div class="chips" data-row="vehicle"></div></div>
+          <div class="row"><span class="label">colour</span><div class="chips" data-row="color"></div></div>
+          <div class="row"><span class="label">time</span><div class="chips" data-row="time"></div></div>
+          <div class="row">
+            <span class="label">day cycle</span>
+            <label class="toggle"><input type="checkbox" data-setting="cycle" /><span></span></label>
+          </div>
+          <div class="row"><span class="label">quality</span><div class="chips" data-row="quality"></div></div>
+          <div class="row"><span class="label">music</span><input type="range" min="0" max="1" step="0.01" data-vol="music" /></div>
+          <div class="row"><span class="label">engine</span><input type="range" min="0" max="1" step="0.01" data-vol="engine" /></div>
+          <div class="row"><span class="label">road</span><span class="muted">seed <span class="seed-label"></span></span><button type="button" class="chip" data-action="new-road">new road</button></div>
+        </div>
+        <button id="to-menu" class="link" type="button">main menu</button>
+      </div>
+    </section>
+
+    <!-- HUD -->
+    <div id="hud" hidden>
+      <div class="hud-speed"><span id="speed">0</span><span id="unit">km/h</span></div>
+      <div class="hud-meta">
+        <span id="dist">0.0 km</span>
+        <span id="clock">18:30</span>
+        <span id="auto-badge">auto</span>
+      </div>
+      <button id="pause-btn" type="button" aria-label="pause">❚❚</button>
+    </div>
+
+    <div id="touch" hidden>
+      <div class="touch-left">
+        <button data-touch="left" aria-label="steer left">◀</button>
+        <button data-touch="right" aria-label="steer right">▶</button>
+      </div>
+      <div class="touch-mid">
+        <button data-touch-btn="KeyE" class="small" aria-label="autodrive">auto</button>
+        <button data-touch-btn="KeyC" class="small" aria-label="camera">cam</button>
+      </div>
+      <div class="touch-right">
+        <button data-touch="back" aria-label="brake">▼</button>
+        <button data-touch="forward" aria-label="accelerate">▲</button>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <div id="nowebgl" class="overlay" hidden>
+      <div class="menu-inner small">
+        <h2>WebGL unavailable</h2>
+        <p>zen drive needs WebGL. Try enabling hardware acceleration in your browser settings.</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
