@@ -1,0 +1,22 @@
+{
+  "name": "zen-drive",
+  "private": true,
+  "version": "1.0.0",
+  "description": "An endless, relaxing, procedurally generated driving game for the browser.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "license": "MIT"
+}
