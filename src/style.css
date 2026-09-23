@@ -22,6 +22,10 @@ html, body {
   -webkit-user-select: none;
 }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#vignette {
+  position: fixed; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 58%, rgba(8, 8, 16, 0.22) 100%);
+}
 [hidden] { display: none !important; }
 
 /* ---------------------------------------------------------------- loading */
@@ -179,6 +183,7 @@ kbd {
   opacity: 0; transition: opacity 0.4s;
 }
 #auto-badge.on { opacity: 1; color: var(--accent); border-color: rgba(255, 215, 168, 0.5); }
+#biome { opacity: 0.85; font-style: italic; letter-spacing: 0.12em; }
 #pause-btn {
   position: absolute; top: 18px; right: 18px;
   pointer-events: auto;

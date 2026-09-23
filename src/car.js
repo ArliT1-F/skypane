@@ -655,7 +655,7 @@ export class Car {
     }
 
     // Brake lights
-    const braking = brake > 0.05 && this.speed > 0.5;
+    const braking = brake > 0.05 && Math.abs(this.speed) > 0.5;
     this.tailMat.emissiveIntensity = (this.tailBase ?? 0.25) + (braking ? 2.5 : 0);
 
     // Engine model for audio

@@ -7,7 +7,7 @@ import { Sky, TIME_PRESETS } from './sky.js';
 import { Car, VEHICLES, COLORS } from './car.js';
 import { AudioEngine } from './audio.js';
 import { Input } from './input.js';
-import { makePropMaterials, floatingTimeUniform } from './props.js';
+import { makePropMaterials, setPropNight, floatingTimeUniform } from './props.js';
 import { clamp, lerp } from './noise.js';
 
 // ------------------------------------------------------------------ settings
@@ -106,6 +106,7 @@ class DreamDust {
     const col = new Float32Array(count * 3);
     this.phases = new Float32Array(count);
     this.speeds = new Float32Array(count);
+    this.mode = -1;
 
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 80;
@@ -153,22 +154,54 @@ class DreamDust {
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
     this.pos = pos;
+    this.col = col;
     this.box = 80;
+  }
+
+  /** Drift palette follows the biome: golden dream dust, blossom petals or snowflakes. */
+  setBiome(mode) {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    const col = this.col;
+    for (let i = 0; i < this.count; i++) {
+      const t = Math.random();
+      let r, g, b;
+      if (mode === 1) {
+        // blossom petals
+        if (t < 0.5) { r = 1.0; g = 0.75; b = 0.85; }
+        else if (t < 0.8) { r = 1.0; g = 0.92; b = 0.96; }
+        else { r = 1.0; g = 0.62; b = 0.78; }
+      } else if (mode === 2) {
+        // snowflakes
+        if (t < 0.6) { r = 0.97; g = 0.98; b = 1.0; }
+        else if (t < 0.9) { r = 0.85; g = 0.92; b = 1.0; }
+        else { r = 0.75; g = 0.85; b = 0.98; }
+      } else {
+        // dream dust
+        if (t < 0.45) { r = 1.0; g = 0.88; b = 0.65; }
+        else if (t < 0.75) { r = 0.68; g = 0.95; b = 0.92; }
+        else { r = 0.95; g = 0.72; b = 0.96; }
+      }
+      col[i * 3] = r; col[i * 3 + 1] = g; col[i * 3 + 2] = b;
+    }
+    this.mesh.geometry.attributes.color.needsUpdate = true;
   }
 
   update(dt, time, cx, cy, cz, night) {
     const p = this.pos;
     const half = this.box / 2;
     this.mat.opacity = 0.5 + night * 0.45;
-    this.mat.size = 1.4 + night * 0.7;
+    this.mat.size = 1.4 + night * 0.7 + (this.mode === 2 ? 0.5 : 0);
+    // snowflakes sink, petals flutter gently down, dust drifts up
+    const fall = this.mode === 2 ? -0.4 : this.mode === 1 ? -0.1 : 0.006;
 
     for (let i = 0; i < this.count; i++) {
       const idx = i * 3;
       const ph = this.phases[i];
       const sp = this.speeds[i];
 
-      p[idx + 1] += Math.sin(time * sp + ph) * 0.02 + 0.006;
-      p[idx] += Math.cos(time * 0.7 * sp + ph) * 0.012;
+      p[idx + 1] += Math.sin(time * sp + ph) * 0.02 + fall;
+      p[idx] += Math.cos(time * 0.7 * sp + ph) * 0.012 + (this.mode === 2 ? 0.02 : 0);
       p[idx + 2] += Math.sin(time * 0.5 * sp + ph) * 0.012;
 
       let dx = p[idx] - cx;
@@ -181,11 +214,96 @@ class DreamDust {
       let dy = p[idx + 1] - cy;
       if (dy < -3) p[idx + 1] = cy + 16 + Math.random() * 4;
       else if (dy > 22) p[idx + 1] = cy + Math.random() * 2;
+      if (fall < 0 && dy < -2.5) p[idx + 1] = cy + 14 + Math.random() * 6;
     }
     this.mesh.geometry.attributes.position.needsUpdate = true;
   }
 }
 const dreamDust = new DreamDust(scene);
+
+// ------------------------------------------------------------------ offroad dust & skid puffs
+class DustSystem {
+  constructor(scene, max = 180) {
+    this.max = max;
+    this.pos = new Float32Array(max * 3);
+    this.vel = new Float32Array(max * 3);
+    this.alpha = new Float32Array(max);
+    this.size = new Float32Array(max);
+    this.life = new Float32Array(max); // seconds remaining
+    this.ttl = new Float32Array(max);
+    this.cursor = 0;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    geo.setAttribute('aAlpha', new THREE.BufferAttribute(this.alpha, 1));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1));
+    this.geo = geo;
+
+    this.mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: { uColor: { value: new THREE.Color(0xc9b28e) } },
+      vertexShader: `
+        attribute float aAlpha;
+        attribute float aSize;
+        varying float vA;
+        void main() {
+          vA = aAlpha;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aSize * (340.0 / max(1.0, -mv.z));
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        varying float vA;
+        void main() {
+          float d = smoothstep(0.5, 0.12, length(gl_PointCoord - 0.5));
+          if (d * vA < 0.01) discard;
+          gl_FragColor = vec4(uColor, d * vA);
+        }
+      `,
+    });
+    this.points = new THREE.Points(geo, this.mat);
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 2;
+    scene.add(this.points);
+  }
+
+  spawn(x, y, z, vx, vy, vz, size, life) {
+    const i = this.cursor;
+    this.cursor = (this.cursor + 1) % this.max;
+    this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z;
+    this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
+    this.size[i] = size;
+    this.life[i] = life;
+    this.ttl[i] = life;
+    this.alpha[i] = 0;
+  }
+
+  update(dt) {
+    const { pos, vel, alpha, life, ttl } = this;
+    let any = false;
+    for (let i = 0; i < this.max; i++) {
+      if (life[i] <= 0) { if (alpha[i] !== 0) { alpha[i] = 0; any = true; } continue; }
+      any = true;
+      life[i] -= dt;
+      const k = Math.max(0, life[i] / ttl[i]);
+      alpha[i] = 0.5 * Math.sin(Math.min(1, 1 - k) * Math.PI) * Math.min(1, k * 6 + 0.2);
+      pos[i * 3] += vel[i * 3] * dt;
+      pos[i * 3 + 1] += vel[i * 3 + 1] * dt;
+      pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+      vel[i * 3 + 1] += 1.4 * dt; // puffs rise
+      this.size[i] += dt * 1.6;
+    }
+    if (any) {
+      this.geo.attributes.position.needsUpdate = true;
+      this.geo.attributes.aAlpha.needsUpdate = true;
+      this.geo.attributes.aSize.needsUpdate = true;
+    }
+  }
+}
+const dust = new DustSystem(scene);
 
 // ------------------------------------------------------------------ world
 const groundMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
@@ -209,9 +327,7 @@ const state = {
   autodrive: false,
   camMode: 0, // 0 chase, 1 low chase, 2 bonnet / first person, 3 cinematic
   time: TIME_PRESETS[settings.time] ?? TIME_PRESETS.sunset,
-  photo: false,
   elapsed: 0,
-  idleTimer: 0,
 };
 const CAM_NAMES = ['chase', 'low chase', 'bonnet', 'cinematic'];
 
@@ -228,11 +344,11 @@ function newWorld(seed) {
   showToast('new road · seed ' + seed);
 }
 
-function resetToRoad() {
+function resetToRoad(silent = false) {
   const i = car.roadIndex;
   car.placeOnRoad(world, i);
   camInit = false;
-  showToast('back on the road');
+  if (!silent && state.mode === 'drive') showToast('back on the road');
 }
 
 // ------------------------------------------------------------------ camera
@@ -325,6 +441,8 @@ function lerpAngle(a, b, t) {
 }
 
 // ------------------------------------------------------------------ environment
+const waterDay = new THREE.Color();
+const waterNight = new THREE.Color();
 function applyTime(hours) {
   sky.setTime(hours);
   sun.color.copy(sky.lightColor);
@@ -337,15 +455,21 @@ function applyTime(hours) {
   const n = sky.night;
   car.setNight(n);
   road.setNight(n);
-  water.material.color.setHex(n > 0.5 ? 0x22364c : 0x489eb2);
+  setPropNight(propMats, n);
+  // water shifts smoothly through the day and picks up a cooler cast in snowy regions
+  waterDay.setHex(0x489eb2).lerp(WATER_ICE, curBiome.snow * 0.55);
+  waterNight.setHex(0x22364c).lerp(WATER_ICE_NIGHT, curBiome.snow * 0.4);
+  water.material.color.copy(waterDay).lerp(waterNight, n);
 }
+const WATER_ICE = new THREE.Color(0x9fc4d8);
+const WATER_ICE_NIGHT = new THREE.Color(0x33475c);
 
 // ------------------------------------------------------------------ UI
 const $ = (id) => document.getElementById(id);
 const ui = {
   menu: $('menu'), pause: $('pause'), hud: $('hud'), toast: $('toast'), loading: $('loading'),
   speed: $('speed'), unit: $('unit'), dist: $('dist'), clock: $('clock'), auto: $('auto-badge'),
-  cam: $('cam-badge'), touch: $('touch'),
+  biome: $('biome'), touch: $('touch'),
 };
 
 function fmtDistance(m) {
@@ -492,7 +616,7 @@ function setPaused(p) {
 // keyboard shortcuts
 input.on('Escape', () => { if (state.mode === 'drive') setPaused(true); else if (state.mode === 'pause') setPaused(false); });
 input.on('KeyP', () => { if (state.mode === 'drive') setPaused(true); else if (state.mode === 'pause') setPaused(false); });
-input.on('Enter', () => { if (state.mode === 'menu') startDrive(); });
+input.on('Enter', () => { if (state.mode === 'menu') startDrive(); else if (state.mode === 'pause') setPaused(false); });
 input.on('KeyE', () => {
   if (state.mode !== 'drive') return;
   state.autodrive = !state.autodrive;
@@ -527,8 +651,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state.mode === 'drive') setPaused(true);
 });
 document.querySelectorAll('[data-touch-btn]').forEach((el) => {
-  el.addEventListener('click', () => input._emit(el.dataset.touchBtn));
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); input._emit(el.dataset.touchBtn); });
 });
+document.getElementById('touch').addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ------------------------------------------------------------------ loop
 function resize() {
@@ -542,6 +667,25 @@ window.addEventListener('resize', resize);
 let lastT = performance.now();
 let fpsAcc = 0, fpsFrames = 0;
 let firstReady = false;
+const curBiome = { snow: 0, desert: 0, autumn: 0, blossom: 0, farm: 0 };
+let lastBiome = '';
+let biomeAcc = 0;
+let biomeToastCd = 0;
+let dustAcc = 0;
+let driveInput = { throttle: 0, brake: 0, steer: 0 };
+let nextMilestone = 10;
+const MILESTONES = [
+  '10 km · keep wandering',
+  '20 km · no destination, just driving',
+  '30 km · the road goes on forever',
+  '40 km · nowhere to be, and that is the point',
+  '50 km · an endless dream of asphalt',
+  '60 km · the horizon never gets closer',
+  '70 km · you and the road, still',
+  '80 km · keep drifting',
+  '90 km · the quiet goes on',
+  '100 km · a true zen driver',
+];
 
 function frame() {
   requestAnimationFrame(frame);
@@ -550,11 +694,13 @@ function frame() {
   lastT = now;
   state.elapsed += dt;
 
+  // poll every frame so gamepad buttons work in the menus and while paused
+  const raw = input.read();
   if (state.mode !== 'pause') {
-    const raw = input.read();
     let drive = { throttle: 0, brake: 0, steer: 0 };
     if (state.mode === 'drive') {
       drive = raw;
+      driveInput = drive;
       if (state.autodrive && (raw.brake > 0 || Math.abs(raw.steer) > 0)) {
         state.autodrive = false;
         showToast('autodrive off');
@@ -565,7 +711,7 @@ function frame() {
     const h = dt / steps;
     let fell = false;
     for (let s = 0; s < steps; s++) fell = car.update(h, world, drive, state.autodrive && state.mode === 'drive') || fell;
-    if (fell) resetToRoad();
+    if (fell) resetToRoad(state.mode !== 'drive');
 
     if (settings.cycle && state.mode === 'drive') {
       state.time = (state.time + dt * (24 / 1200)) % 24;
@@ -575,12 +721,56 @@ function frame() {
   // Animate floating dreamcore objects via shader uniform
   floatingTimeUniform.value = state.elapsed;
 
+  // biome tracking: HUD label always current, toast when crossing into a new one
+  biomeAcc -= dt;
+  if (biomeAcc <= 0) {
+    biomeAcc = 0.4;
+    world.biomeWeights(car.x, car.z, true, curBiome);
+    const name = world.biomeName(car.x, car.z);
+    if (ui.biome.textContent !== name) {
+      ui.biome.textContent = name;
+      if (state.mode === 'drive' && name !== lastBiome && state.elapsed > 6 && biomeToastCd <= 0) {
+        showToast('entering ' + name);
+        biomeToastCd = 12;
+      }
+      if (name !== lastBiome) lastBiome = name;
+    }
+  }
+  biomeToastCd = Math.max(0, biomeToastCd - dt);
+
   applyTime(state.time);
   terrain.update(car.x, car.z);
   road.update(car.roadIndex);
   updateCamera(dt);
   sky.update(camera, state.elapsed);
+  dreamDust.setBiome(curBiome.snow > 0.5 ? 2 : curBiome.blossom > 0.45 ? 1 : 0);
   dreamDust.update(dt, state.elapsed, car.x, car.y, car.z, sky.night);
+
+  // kicked-up dust: gravel when off-road, tyre smoke under hard braking, white in snow
+  const spdAbs = Math.abs(car.speed);
+  if (state.mode === 'drive' && ((car.offRoad > 0.5 && spdAbs > 4) || (driveInput.brake > 0.6 && spdAbs > 14))) {
+    dustAcc += dt * Math.min(30, spdAbs);
+    while (dustAcc > 1) {
+      dustAcc -= 1;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
+      const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+      const snowPuff = curBiome.snow > 0.5;
+      const col = snowPuff ? 0xeef3f8 : curBiome.desert > 0.5 ? 0xd8b98a : 0xc9b28e;
+      dust.mat.uniforms.uColor.value.setHex(col);
+      dust.spawn(
+        car.x - fx * 1.6 + rx * side * 0.8 + (Math.random() - 0.5) * 0.4,
+        car.y + 0.15,
+        car.z - fz * 1.6 + rz * side * 0.8 + (Math.random() - 0.5) * 0.4,
+        -fx * spdAbs * 0.15 + (Math.random() - 0.5) * 1.2,
+        0.6 + Math.random() * 1.2,
+        -fz * spdAbs * 0.15 + (Math.random() - 0.5) * 1.2,
+        0.35 + Math.random() * 0.5,
+        0.7 + Math.random() * 0.6
+      );
+    }
+  }
+  dust.update(dt);
 
   // light/shadow & water follow the car
   sun.position.set(car.x + sky.lightDir.x * 300, car.y + sky.lightDir.y * 300, car.z + sky.lightDir.z * 300);
@@ -588,9 +778,20 @@ function frame() {
   water.position.x = Math.round(car.x / 64) * 64;
   water.position.z = Math.round(car.z / 64) * 64;
 
-  const fogFar = lerp(qualityLevel() > 0 ? 3600 : 2600, 1600, sky.night);
+  // fog must sit inside the streamed terrain radius or the world edge shows
+  const ringFar = qualityLevel() > 0 ? 2950 : 1980; // matches the outermost LOD ring
+  const fogFar = lerp(ringFar, 1450, sky.night);
   scene.fog.far = fogFar;
   scene.fog.near = fogFar * 0.08;
+
+  // gentle milestone musings on long drives
+  if (state.mode === 'drive') {
+    const km = car.distance / 1000;
+    if (km >= nextMilestone) {
+      showToast(MILESTONES[(Math.round(nextMilestone / 10) - 1) % MILESTONES.length]);
+      nextMilestone += 10;
+    }
+  }
 
   // HUD
   if (state.mode === 'drive' && settings.hud) {
@@ -610,6 +811,7 @@ function frame() {
     rpm: car.rpm, speed: car.speed, throttle: state.mode === 'drive' ? car.throttleVis : 0,
     offRoad: car.offRoad, night: sky.night, paused: state.mode === 'pause' || state.mode === 'menu',
     engineRange: car.spec.engine.range / 95, isBike: car.spec.isBike,
+    biodamp: clamp(curBiome.desert + curBiome.snow, 0, 1),
   });
 
   ui.touch.hidden = !isMobile || state.mode !== 'drive';

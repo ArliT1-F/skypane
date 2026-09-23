@@ -10,18 +10,30 @@ and no asset files: the terrain, trees, cars, sky, music and engine sound are al
 
 - **Endless procedural world**: a winding two-lane road carved through rolling hills, forests,
   lakes and snow-capped mountains. Terrain streams in around you on Web Workers, with 5 LOD rings.
+- **Seven biomes**: climate noise blends open meadow, deep forest, autumn woods, desert dunes
+  (with real dune terrain), snowfields, blossom groves and working farmland into one seamless
+  world. The HUD names the biome you're in, and a toast announces each new one.
 - **Seeds**: every road comes from a seed. Share a road with `?seed=123456`.
 - **Time of day**: dawn, morning, noon, afternoon, sunset or night, plus an optional
   20-minute day/night cycle. Includes stars, a moon, headlights and glowing roadside reflectors.
 - **Four vehicles** (coupe, wagon, camper van, motorcycle) in 8 colours.
 - **Slow Roads progressive steering mechanics**: smooth, non-linear steering input, speed-dependent steering lock limiter, and realistic vehicle lateral momentum and grip physics.
-- **Dreamcore & rich procedural world**: floating luminous octahedrons & dream rings, classical marble pillars, glowing ground crystals, flowering bushes, wildflower patches, dream blossom trees, roadside chevrons and vintage lanterns.
-- **Dreamy aesthetics & particles**: floating dream dust and fireflies drifting through the air, painterly sky palettes, atmospheric fog, and dynamic motorcycle banking physics.
+- **Dreamcore & rich procedural world**: floating luminous octahedrons & dream rings, hot-air
+  balloons, dark monoliths, classical marble pillars, glowing ground crystals, stone henges,
+  weathered arches, fairy rings of glowing mushrooms, flowering bushes, wildflower and sunflower
+  patches, dream blossom trees, roadside chevrons and vintage lanterns.
+- **Biome life**: saguaro cacti, bleached dead trees and tumbleweeds in the desert; palms and
+  reeds at oases; snow-laden pines, snowmen and ice crystals in the snowfields; orange autumns
+  with fallen logs; lily pads on quiet lakes; wooden fences, hay bales and spinning windmills on
+  the farm roads — every one placed deterministically from the seed.
+- **Dreamy aesthetics & particles**: floating dream dust and fireflies drifting through the air,
+  dust and snow kicked up by off-road wheels and hard braking, painterly sky palettes,
+  atmospheric fog, and dynamic motorcycle banking physics.
 - **Autodrive** (`E`): the car follows the road on its own. Tap throttle to speed up; steer or brake to take over.
 - **Four cameras** (`C`): chase, low chase, bonnet and cinematic roadside shots.
 - **Generative audio**: ambient pad music, engine, road/wind/gravel noise, birds by day and crickets at night.
   All of it is synthesised with the Web Audio API.
-- Keyboard, **gamepad** and **touch** controls. Settings are saved to `localStorage`.
+- Keyboard, **gamepad** (A / button-0 works in the menus too) and **touch** controls. Settings are saved to `localStorage`.
 
 ## Controls
 

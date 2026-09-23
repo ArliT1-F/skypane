@@ -195,6 +195,10 @@ export class Terrain {
       im.castShadow = want.d <= 1 && def.castShadow !== false;
       im.receiveShadow = false;
       im.computeBoundingSphere();
+      // shader-animated props (bobbing/rotating) move outside their static bounds
+      if (kind === 'floatingDiamond' || kind === 'floatingRing' || kind === 'balloon') {
+        im.boundingSphere.radius += 3;
+      }
       group.add(im);
     }
     group.updateMatrixWorld(true);

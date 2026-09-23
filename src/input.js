@@ -63,8 +63,8 @@ export class Input {
       if (Math.abs(ax) > 0.12) { steer = -clamp((Math.abs(ax) - 0.12) / 0.88, 0, 1) * Math.sign(ax); usingPad = true; }
       if (rt > 0.05) { throttle = Math.max(throttle, rt); usingPad = true; }
       if (lt > 0.05) { brake = Math.max(brake, lt); usingPad = true; }
-      // edge-triggered buttons: Y camera, X autodrive, Start pause, B reset
-      const map = { 3: 'KeyC', 2: 'KeyE', 9: 'Escape', 1: 'KeyR' };
+      // edge-triggered buttons: A confirm, Y camera, X autodrive, Start pause, B reset
+      const map = { 0: 'Enter', 3: 'KeyC', 2: 'KeyE', 9: 'Escape', 1: 'KeyR' };
       for (const b in map) {
         const pressed = p.buttons[b] && p.buttons[b].pressed;
         const key = p.index + ':' + b;
