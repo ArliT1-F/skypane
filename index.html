@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1b2233" />
+    <meta name="description" content="zen drive — an endless, procedurally generated driving game. No scores, no traffic, no destination. Just drive." />
+    <title>zen drive</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23f3b98a'/%3E%3Cpath d='M28 62 L32 30 L36 62Z' fill='%23333'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="vignette"></div>
+    <div id="fade"></div>
+
+    <!-- title -->
+    <section id="title">
+      <div class="title-inner">
+        <h1>z e n &nbsp; d r i v e</h1>
+        <p class="tagline">an endless road · no traffic · no destination</p>
+        <button id="begin" class="primary" disabled>shaping the land…</button>
+        <button id="title-settings" class="ghost">scenery &amp; settings</button>
+      </div>
+      <p class="keys">
+        <kbd>W A S D</kbd> / arrows drive &nbsp;·&nbsp; <kbd>F</kbd> autodrive &nbsp;·&nbsp; <kbd>C</kbd> camera &nbsp;·&nbsp;
+        <kbd>T</kbd> time &nbsp;·&nbsp; <kbd>R</kbd> back to road &nbsp;·&nbsp; <kbd>Esc</kbd> menu
+      </p>
+    </section>
+
+    <!-- hud -->
+    <section id="hud">
+      <div class="gauge">
+        <span id="speed">0</span><span id="unit">km/h</span>
+      </div>
+      <div class="odo"><span id="dist">0.00</span> <span id="dist-unit">km</span></div>
+      <div id="auto-badge">autodrive</div>
+      <button id="menu-btn" aria-label="menu">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+      </button>
+    </section>
+
+    <div id="toast"></div>
+
+    <!-- touch controls -->
+    <section id="touch">
+      <div id="steer-pad"><div id="steer-knob"></div></div>
+      <div class="pedals">
+        <button id="brake">◀◀</button>
+        <button id="gas">▲</button>
+      </div>
+    </section>
+
+    <!-- loader -->
+    <div id="loader">
+      <div class="loader-track"><div id="loader-bar"></div></div>
+    </div>
+
+    <!-- menu -->
+    <section id="menu">
+      <div class="panel">
+        <header>
+          <h2>pull over</h2>
+          <button id="menu-close" class="ghost small" aria-label="close">✕</button>
+        </header>
+
+        <div class="row">
+          <label>scenery</label>
+          <div class="chips" data-group="biome"></div>
+        </div>
+        <div class="row">
+          <label>time of day</label>
+          <div class="chips" data-group="time"></div>
+          <label class="toggle"><input type="checkbox" data-toggle="timeFlow" /> <span>let time pass</span></label>
+        </div>
+        <div class="row">
+          <label>weather</label>
+          <div class="chips" data-group="weather"></div>
+        </div>
+        <div class="row">
+          <label>car</label>
+          <div class="swatches" data-group="car"></div>
+        </div>
+        <div class="row">
+          <label>camera</label>
+          <div class="chips" data-group="camera"></div>
+        </div>
+        <div class="row">
+          <label>driving</label>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" data-toggle="autodrive" /> <span>autodrive</span></label>
+            <label class="toggle"><input type="checkbox" data-toggle="hud" /> <span>show hud</span></label>
+          </div>
+          <div class="chips" data-group="units"></div>
+        </div>
+        <div class="row">
+          <label>sound</label>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" data-toggle="engine" /> <span>engine</span></label>
+            <label class="toggle"><input type="checkbox" data-toggle="ambience" /> <span>wind &amp; road</span></label>
+            <label class="toggle"><input type="checkbox" data-toggle="music" /> <span>ambient music</span></label>
+          </div>
+          <input id="volume" type="range" min="0" max="1" step="0.01" aria-label="volume" />
+        </div>
+        <div class="row">
+          <label>graphics</label>
+          <div class="chips" data-group="quality"></div>
+        </div>
+        <div class="row">
+          <label>world seed</label>
+          <div class="seed">
+            <input id="seed" type="text" placeholder="random" spellcheck="false" />
+            <button id="random-seed" class="ghost small" title="random seed">⟳</button>
+            <button id="regen" class="ghost small">new road</button>
+          </div>
+        </div>
+
+        <footer>
+          <button id="resume" class="primary">keep driving</button>
+        </footer>
+      </div>
+    </section>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
